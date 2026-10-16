@@ -2,7 +2,7 @@
 
 Synthetic benchmark for three questions about an action-chunk diffusion policy: how long DDIM sampling takes, whether it picks one corridor when MSE regression averages them, and whether receding-horizon replanning recovers from a 6 cm lateral jump.
 
-The suite does not start Isaac Sim, ORBIT, or a robot. Numbers in [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) are one run of this planar check. The plant state is in meters: the jump of 0.06 m is 60 mm on a 240 mm path. [docs/TECHNICAL_REPORT.md](docs/TECHNICAL_REPORT.md) is the engineering report, including the unit convention and what a uniform rescaling would mean.
+The suite does not start Isaac Sim, ORBIT, or a robot. Numbers in [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) are one run of this planar check. The plant state is in meters: the jump of 0.06 m is 60 mm on a 240 mm path. [docs/TECHNICAL_REPORT.md](docs/TECHNICAL_REPORT.md) records the units, the operating point, the action-chunk formulation this code implements, and the published sources it does not reproduce.
 
 ## Demo
 

@@ -1,6 +1,6 @@
 # Technical report: planar action-chunk benchmark
 
-This is an engineering report of one CPU benchmark. It records what the code measured, how the units should be read, and which operating point the numbers support.
+This is an engineering report of one CPU benchmark. It records what the code measured, how the units should be read, which operating point the numbers support, the formulation the code implements, and which published results it does not inherit.
 
 It is not a product requirements document. It is not a manuscript, and it is not evidence for a clinical claim.
 
@@ -92,3 +92,61 @@ A uniform rescaling, such as the 12 mm example above, preserves the rates only a
 The repository does not show that a foundation-model checkpoint can be reused across diffusion and flow matching. Octo publishes a diffusion action head, OpenVLA emits discrete action tokens, and π0 is trained with flow matching. Those are different interfaces.
 
 Nothing here is a verification package for a surgical device.
+
+## 7. Formulation this code implements
+
+The behavior policy is an action chunk, not a single motor command. At a planning state the network emits
+
+\[
+A = [a_0, \ldots, a_{15}]
+\]
+
+with shape `(batch, 16, action_dim)`. Each \(a_i\) is a cumulative offset from that planning state. The plant executes the difference between successive offsets, so a mid-chunk state jump is not cancelled by the remainder of the old chunk. CONTINUE integrates the whole chunk. REPLAN discards it after 4 or 8 executed steps, reads the new state, and samples again. A published Diffusion Policy often keeps an observation horizon of two frames and executes the first 8 of a longer prediction. This bench uses one state vector, a prediction of 16, and execution of 4 or 8.
+
+Training does not regress \(A\). DDIM regresses the noise that a cosine schedule mixed into \(A\):
+
+\[
+A_k = \sqrt{\bar\alpha_k}\, A + \sqrt{1-\bar\alpha_k}\,\epsilon, \qquad
+\mathcal{L} = \lVert \epsilon - \epsilon_\theta(A_k, k, o) \rVert^2.
+\]
+
+The schedule has 50 training levels. Behavior samples use 10 DDIM steps unless a row says otherwise. Mean-squared regression of \(A\) itself is the MLP baseline. On two corridors that objective returns their average, which intersects the disk.
+
+Flow matching uses the same network and a different target. A noise sample \(x_0\) and a chunk \(x_1\) are joined by the straight interpolant, and the network matches the constant velocity:
+
+\[
+x_t = (1-t)\,x_0 + t\,x_1, \qquad v = x_1 - x_0, \qquad
+\mathcal{L} = \lVert v - v_\theta(x_t, t, o) \rVert^2.
+\]
+
+Sampling is Euler integration from \(t=0\) to \(t=1\). One step has \(\Delta t = 1\). From the symmetric origin that single step follows the average of the two corridors. After the lateral jump the conditional field is no longer symmetric, and the same one-step update recovers.
+
+`TrajectoryDenoiser` is a shallow temporal convolution, not the U-Net or the time-series transformer in the Diffusion Policy paper. The first convolution reads only the action chunk. The observation and the noise level produce a scale and a shift that apply to every time index:
+
+| Stage | Behavior policy | Latency head |
+| --- | --- | --- |
+| Observation \(o\) | `(B, 7)` | `(B, 128)` |
+| Noisy chunk | `(B, 16, 2)` | `(B, 16, 7)` |
+| After transpose and `Conv1d` | `(B, 128, 16)` | `(B, 64, 16)` |
+| Scale and shift, broadcast over time | `(B, 128, 1)` | `(B, 64, 1)` |
+| Output, transposed back | `(B, 16, 2)` | `(B, 16, 7)` |
+
+The modulation is \(h \leftarrow h\,(1+\gamma)+\beta\). The same \(\gamma\) and \(\beta\) cover all 16 steps, so one observation conditions the whole chunk. A sinusoidal embedding of the time index is added before that modulation. Without it a shift-equivariant convolution cannot raise a corridor and return to the goal. The latency head is randomly initialized and is not the behavior checkpoint. Its 7-dimensional action and 128-dimensional observation are the shapes used for the timing rows only.
+
+## 8. Sources, and what this bench does not inherit
+
+The implementation follows published definitions. It does not reproduce their robots, datasets, or reported rates.
+
+| Source | Taken from it | Not taken from it |
+| --- | --- | --- |
+| Chi et al., Diffusion Policy, RSS 2023 and IJRR 2024. [arXiv:2303.04137](https://arxiv.org/abs/2303.04137), [project page](https://diffusion-policy.cs.columbia.edu/), [code](https://github.com/real-stanford/diffusion_policy) | Conditional denoising of an action chunk, closed-loop execution of a prefix, and the observation that an MSE policy averages two modes. Their real UR5 issues commands at 10 Hz, interpolated to 125 Hz. | Their image-conditioned U-Net and transformer, their task suite, and that 10 Hz rate. This bench's 100 Hz row is an action-head budget on this CPU. |
+| Ho, Jain, and Abbeel, Denoising Diffusion Probabilistic Models, NeurIPS 2020. [arXiv:2006.10565](https://arxiv.org/abs/2006.10565) | Noise-prediction MSE and the closed form for a noisy sample at an arbitrary level. | Image generation results. The schedule here is cosine, as in Nichol and Dhariwal, [arXiv:2102.09672](https://arxiv.org/abs/2102.09672). |
+| Perez et al., FiLM, AAAI 2018. [arXiv:1709.07871](https://arxiv.org/abs/1709.07871) | Channel-wise scale and shift from a condition vector. | A claim that a particular channel encodes an obstacle or a joint. |
+| Lipman et al., Flow Matching for Generative Modeling, ICLR 2023. [arXiv:2210.02747](https://arxiv.org/abs/2210.02747). Library and later guide: [flow_matching](https://github.com/facebookresearch/flow_matching), [arXiv:2412.06264](https://arxiv.org/abs/2412.06264) | The optimal-transport interpolant and the constant-velocity regression target. | ImageNet likelihoods. The one-step collision at the origin is a measurement on this disk, not a theorem in that paper. |
+| Black et al., \(\pi_0\), RSS 2025. [arXiv:2410.24164](https://arxiv.org/abs/2410.24164), [blog](https://www.pi.website/blog/pi0) | The fact that a current generalist manipulation policy emits continuous actions with flow matching, at control rates up to 50 Hz. | Their vision-language backbone, their data, and that 50 Hz result. |
+| Mittal et al., Orbit, IEEE RA-L 2023. [arXiv:2301.04195](https://arxiv.org/abs/2301.04195). Successor: [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/), [repository](https://github.com/isaac-sim/IsaacLab), [manager-based environments](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html) | The contract a later port would meet: a vector observation, an action tensor, and event terms for disturbance and domain randomization on GPU. | Any Isaac run. This repository does not start that simulator. |
+| Saeidi et al., autonomous laparoscopic anastomosis, Science Robotics 2022. [doi:10.1126/scirobotics.abj2908](https://www.science.org/doi/10.1126/scirobotics.abj2908) | A published case in which a robot replans suture placement under supervision and compensates for breathing motion. | A tolerance, a frequency, or a success rate for this plane. The 60 mm jump is not a tissue motion from that study. |
+| Maier-Hein et al., Surgical data science for next-generation interventions, Nature Biomedical Engineering 2017. [arXiv:1701.06482](https://arxiv.org/abs/1701.06482) | The scope boundary: interventional data science is a clinical data problem, not a planar geometry check. | A clinical endpoint. |
+| Yang et al., levels of autonomy for medical robots, Science Robotics 2017. [doi:10.1126/scirobotics.aam8638](https://www.science.org/doi/10.1126/scirobotics.aam8638) | The category in which a person supervises local replanning. | An assignment of this benchmark to that category. |
+
+Octo, OpenVLA, and \(\pi_0\) remain different action interfaces, as stated in section 6. None of those checkpoints was loaded.
