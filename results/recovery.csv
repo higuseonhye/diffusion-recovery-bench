@@ -1,0 +1,4 @@
+mode,t_exec,trials,success_rate,collision_rate,median_final_error_cm,mean_final_error_cm,median_steps_to_goal,median_time_to_goal_at_20hz_s
+CONTINUE,16,32,0.0,0.5,5.691521955063722,5.682138296541936,,
+REPLAN,4,32,0.78125,0.21875,1.459874395335962,1.400155883302829,11.0,0.55
+REPLAN,8,32,0.5625,0.4375,1.4720201566447324,1.3693628572374625,12.0,0.6000000000000001

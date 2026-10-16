@@ -1,0 +1,3 @@
+method,trials,collision_rate,success_rate,median_final_error_cm,left_fraction,right_fraction,collapsed_fraction,min_clearance_cm
+mlp,1,1.0,0.0,0.08020383967502392,0.0,0.0,1.0,-3.54770329850976
+diffusion,32,0.09375,0.90625,0.40388800545796566,0.53125,0.4375,0.03125,4.044101790573726
