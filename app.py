@@ -134,6 +134,9 @@ def main() -> None:
         f"collision **{replanned['collided']}**."
     )
     st.caption(
+        "Axes are meters. A slider value of 6 cm is 0.06 m, which is 60 mm on the "
+        "240 mm path (25% of the travel). That label converts meters to centimeters. "
+        "It does not magnify a smaller motion, and it is not a sub-millimeter surgical amplitude. "
         "CONTINUE integrates the chunk sampled at the origin. "
         "REPLAN samples a new chunk from the state after the jump. "
         "A single slider replay is not the table above."

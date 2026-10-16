@@ -1,8 +1,9 @@
 """Planar point-mass task used by the behavior experiments.
 
 Two demonstration corridors leave the origin and meet at a goal. Their average
-passes through a disk obstacle. A 6 cm lateral jump is an instantaneous state
-offset in meters. This is not a rigid-body simulator.
+passes through a disk obstacle. The lateral jump is an instantaneous state
+offset in meters: 0.06 m is 60 mm on a 240 mm path. A centimeter label is that
+conversion, not a display gain. This is not a rigid-body simulator.
 """
 
 from __future__ import annotations
@@ -21,6 +22,35 @@ OBS_DIM = 7
 AMP = 0.09
 PERTURBATION_M = 0.06
 DISTURB_AFTER_STEPS = 4
+# Example tool-tip travel used only to state similitude. The recorded run
+# used the meter geometry above. Rates carry over when every length is scaled
+# by the same factor, because actions are standardized before training.
+# Shrinking only the jump is a different experiment and was not run.
+EXAMPLE_TOOL_PATH_MM = 12.0
+
+
+def length_mm(meters: float) -> float:
+    return float(meters) * 1000.0
+
+
+def similitude(path_length_mm: float = EXAMPLE_TOOL_PATH_MM) -> dict:
+    """Map the recorded geometry onto another path length.
+
+    Every length scales by the same factor. The returned millimeters are an
+    interpretation of this geometry, not a second measured run.
+    """
+    path_m = float(GOAL[0] - START[0])
+    if path_m <= 0.0:
+        raise ValueError("path length must be positive")
+    factor = (path_length_mm / 1000.0) / path_m
+    return {
+        "path_mm": path_length_mm,
+        "jump_mm": PERTURBATION_M * factor * 1000.0,
+        "obstacle_radius_mm": OBSTACLE_RADIUS * factor * 1000.0,
+        "goal_tolerance_mm": GOAL_TOL * factor * 1000.0,
+        "corridor_peak_mm": AMP * factor * 1000.0,
+        "jump_over_path": PERTURBATION_M / path_m,
+    }
 
 
 def observation(xy: np.ndarray) -> np.ndarray:
